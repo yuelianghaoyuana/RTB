@@ -29,6 +29,15 @@ def read_numbers_form_column(filePath):
 	return data
 
 
+#@param: list or numyArray
+def save_column_to_file(data,filePath):
+	with open(filePath,'w') as f:
+		for i in xrange(len(data)):
+			f.write(str(data[i])+'\n')
+	f.close()
+
+
+
 def find_max_index(mylist):
 	maxV=-sys.maxint
 	indmax=-1
@@ -320,7 +329,7 @@ def clf_return_score_and_proba(X,Y, test_size,tuned_parameters,ppfile,score,algo
 	perf= sum( pc==Y_test)/float(len(Y_test))
 	np.savetxt(ppfile, pp, delimiter=",")
 
-	print pp
+	# print pp
 
 	return pc,perf 
 
@@ -377,27 +386,98 @@ def reduce_nonuseful_attr(X):
 	#sum X in column:0, row:1
 	nonZeroCount=(X.sum(0)!=0)
 	indNonZero=np.asarray(nonZeroCount).reshape(-1)
-	
-
-	print len(indNonZero)
 
 	per_red= (m-sum(indNonZero))/float(m)
 
 	X_red= X[:,indNonZero]
 
-	print type(X_red), X_red.shape
+	# print type(X_red), X_red.shape
 
  	return X_red,per_red
 
+
+
+def userNum_by_adv(pickleUsrids,pickleY, filenameC,filenameW):
+	usr_ids=list(cPickle.load(open(pickleUsrids)))
+	adv_ids=list(cPickle.load(open(pickleY)))
+
+	adv_usr_dict={}
+
+	uniq_adv= set(adv_ids)
+
+	for adv in uniq_adv:
+		adv_usr_dict[adv]=[]
+
+
+	if len(usr_ids)!= len(adv_ids):
+		print 'error: different length of usrers and advertisers'
+		return
+
+	for i in xrange(len(usr_ids)):
+		urs=usr_ids[i]
+		adv=adv_ids[i]
+
+		adv_usr_dict[adv].append(urs)
+
+	fC=open(filenameC,'w')
+	fW=open(filenameW,'w')
+	for adv,urss in adv_usr_dict.items():
+		fC.write(str(adv)+'\n')
+		fW.write(str(len(set(urss)))+'\n')
+	fC.close()
+	fW.close()
+
+
+def show_dist_by_class(y):
+	uniq_y= set(y)
+	y_dict={}
+	for cl in uniq_y:
+		y_dict[cl]=0
+
+	for cl_y in y:
+		y_dict[cl_y]+=1
+
+	count_list= sorted(list(y_dict.values()),reverse=True)
+	perc_list= np.array(count_list)/float(len(y))
+
+	print 'the number of observation in classes:'+'\n'
+	print count_list
+	print 'the percentage of observation in classes:'+'\n'
+	print perc_list
+
+	return perc_list
+
+
+'''
+all parameters is here!
+'''
+
+foldPath='C:/Users/tradelab/Documents/donnes/2014-04-07'
+	
+pickleX=foldPath+'/X.pickle'
+pickleY=foldPath+'/Y.pickle'
+pickleMd5s=foldPath+'/md5s.pickle'
+pickleUsrids=foldPath+'/usr_ids.pickle'
+pathY=foldPath+'/Y.txt'
+pathUsr_ids=foldPath+'/usr_ids.txt'
+
+
+tuned_parameters = {'alpha':[0.01,0.1,1,10,100]}
+test_size=0.3
+score = 'accuracy'
+ppfile='post_porba.csv'
+algo=getattr(sklearn.naive_bayes,'MultinomialNB')
+
+filenameC='all_classes2.txt'
+filenameW='all_weights2.txt'
+filePathC=foldPath+'/'+filenameC
+filePathW=foldPath+'/'+filenameW
+
+
+
 if __name__=="__main__":
 
-	foldPath='C:/Users/tradelab/Documents/donnes/2014-04-07'
 	
-	pickleX=foldPath+'/X.pickle'
-	pickleY=foldPath+'/Y.pickle'
-	pickleMd5s=foldPath+'/md5s.pickle'
-	pickleUsrids=foldPath+'/usr_ids.pickle'
-
 	"""
 	----------------------store and read information----------------------------------------'
 	"""
@@ -411,13 +491,17 @@ if __name__=="__main__":
 	usr_ids=cPickle.load(open(pickleUsrids))
 
 	print 'X type is ', type(X)
-
 	print 'Y type is ',	type(Y)
 	print 'X shape is ', X.shape
 	print 'Y shape is ', Y.shape
 	print 'mds length is ', len(md5s)
 	print 'usr_ids length is ',	len(usr_ids)
 
+
+	# save_column_to_file(Y,pathY)
+	# save_column_to_file(usr_ids,pathUsr_ids)
+
+	
 	#important: when store, X is coo format
 	#			shold be changed to csr format for slicing
 	X=X.tocsr()
@@ -428,24 +512,17 @@ if __name__=="__main__":
 	"""
 	----------------------train and test----------------------------------------'
 	"""
-	# tuned_parameters = {'C':[0.01,0.1,1]}
-	tuned_parameters = {'alpha':[0.01,0.1,1,10,100]}
-	test_size=0.3
-	score = 'accuracy'
-	ppfile='post_porba.csv'
-	algo=getattr(sklearn.naive_bayes,'MultinomialNB')
 	pc,perf=clf_return_score_and_proba(X,Y, test_size,tuned_parameters,foldPath+'/'+ppfile,score,algo,cv=0)
 	
 	print 'perf with all data in a pool ', perf
 	
-	
+
 	"""
 	----------------------clustering----------------------------------------'
 	"""
-	filenameC='all_classes.txt'
-	filenameW='all_weights.txt'
-	filePathC=foldPath+'/'+filenameC
-	filePathW=foldPath+'/'+filenameW
+
+	#userNum_by_adv(pickleUsrids,pickleY, filePathC,filePathW)
+
 	algoCluster=GMM(n_components=1, covariance_type='full',  random_state=0,n_iter=10000)
 
 	clusterIds,clusters,clustersWt= clutering_advs(filePathC,filePathW, algoCluster,numT=10)
@@ -458,22 +535,23 @@ if __name__=="__main__":
 	----------------------regroupment----------------------------------------'
 	"""
 	X_dict, Y_dict=regroup_by_given_clusters(clusters, X,Y)
+
+
+
 	per_red={}
 	for cl in X_dict:
-		print type(X_dict[cl])
 		X_dict[cl],per_red[cl]=reduce_nonuseful_attr(X_dict[cl])
-	print 'the matrix has reduced '
-	print per_red
-
+		print cl,'final dimension ',X_dict[cl].shape[1]
+	print 'the matrix has reduced ',per_red
 
 
 	pc_dict={}
 	perf_dict={}
 	for cl in X_dict:
-		print '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
+		print '!!!!!!!!!!!!!!!!!!!!!!'+str(cl)+'!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
 		# print X_dict[cl],Y_dict[cl]
 		# print type(X_dict[cl]),X_dict[cl].shape
 		# print type(Y_dict[cl]),Y_dict[cl].shape
-		if cl==0:
-			pc_dict[cl],perf_dict[cl]=clf_return_score_and_proba(X_dict[cl],Y_dict[cl], test_size,tuned_parameters,ppfile,score,algo,cv=0)
+		show_dist_by_class(Y_dict[cl])
+		pc_dict[cl],perf_dict[cl]=clf_return_score_and_proba(X_dict[cl],Y_dict[cl], test_size,tuned_parameters,ppfile,score,algo,cv=0)
 	print perf_dict
